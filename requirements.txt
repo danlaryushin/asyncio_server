@@ -1,3 +1,4 @@
 async-timeout==4.0.3
 asyncio==3.4.3
 asyncpg==0.29.0
+dotenv==0.0.5

@@ -1,13 +1,23 @@
 import asyncio
 import asyncpg
 import json
+import logging
+from settings import LOG_FILE, LOG_FORMAT, USER, PASSWORD, DB, HOST, PORT
+
+logging.basicConfig(
+    format=LOG_FORMAT,
+    level=logging.INFO,
+    filename=LOG_FILE,
+    filemode='a',
+    encoding='utf-8',
+)
 
 DB_CONFIG = {
-    'user': 'vms_user',
-    'password': 'password',
-    'database': 'vms_db',
-    'host': '127.0.0.1',
-    'port': 5432,
+    'user': USER,
+    'password': PASSWORD,
+    'database': DB,
+    'host': HOST,
+    'port': PORT,
 }
 
 
@@ -39,7 +49,7 @@ class VirtualMachineManager:
         '''
         )
         await conn.close()
-        print('Tables created or already exist.')
+        logging.info('Tables created or already exist.')
 
     async def add_vm(self, conn, ram, disks):
         cpu = len(disks)
@@ -64,7 +74,7 @@ class VirtualMachineManager:
                 size,
             )
         await conn.close()
-        print(f'VM ID {vm_id} added to db')
+        logging.info(f'VM ID {vm_id} added to db')
 
     async def connect_auth(self, request, conn, action, vm_id):
         result = await conn.fetchval(
@@ -86,6 +96,7 @@ class VirtualMachineManager:
                 self.authorized_vms[vm_id] = request['vm_id']
                 self.ever_connected.append(vm_id)
                 response = {'status': 'connected and authenticated'}
+            logging.info(f'VM ID {vm_id} {response["status"]}')
         else:
             response = {
                 'error': 'VM ID does not exist',
@@ -196,7 +207,8 @@ class VirtualMachineManager:
         if vm_id in self.authorized_vms:
             self.authorized_vms.pop(vm_id)
             self.connected_vms.pop(vm_id)
-            response = {'status': 'logged_out'}
+            response = {'status': 'logged out'}
+            logging.info(f'VM ID {vm_id} logged out')
         else:
             response = {'error': 'vm not authenticated'}
         return response
@@ -245,6 +257,7 @@ class VirtualMachineManager:
                                 vm_id,
                             )
                     response = {'status': 'vm updated'}
+                    logging.info(f'VM ID {vm_id} updated')
                 else:
                     response = {'status': 'no updates'}
             finally:
@@ -269,7 +282,7 @@ class VirtualMachineManager:
             try:
                 request = json.loads(json_data)
             except json.JSONDecodeError as e:
-                print(f'Error decoding JSON: {e}')
+                logging.error(f'Error decoding JSON: {e}', exc_info=True)
                 raise
             action = request.get('action')
             vm_id = request.get('vm_id')
@@ -282,7 +295,7 @@ class VirtualMachineManager:
             elif action == 'add_vm':
                 try:
                     await self.add_vm(conn, request['ram'], request['disks'])
-                    response = {'status': 'vm_added'}
+                    response = {'status': 'vm added'}
                 except Exception:
                     response = {'error': 'required data: ram, disks'}
 
@@ -313,7 +326,7 @@ class VirtualMachineManager:
             writer.write(json.dumps(response).encode())
             await writer.drain()
         except Exception as e:
-            print(f'Error: {e}')
+            logging.error(f'Error: {e}', exc_info=True)
             writer.write(json.dumps({'error': str(e)}).encode())
             await writer.drain()
         finally:
